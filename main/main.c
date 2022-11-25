@@ -3,39 +3,34 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "freertos/timers.h"
 
 #define led1 2
 
 uint8_t led_level = 0;
-uint8_t count = 0;
 static const char *tag="Main";
+TimerHandle_t xTimers;
+
+int interval = 500;
+int timerId = 1;
+
+
+
+
 
 esp_err_t init_led(void);
 esp_err_t blink_led(void);
+esp_err_t set_timer(void);
+
+void vTimerCallback(TimerHandle_t pxTimer){
+	ESP_LOGI(tag,"Event was called from timer");
+	blink_led();
+}
 
 void app_main(void)
 {
 	init_led();
-
-    while (1) {
-        vTaskDelay(1000/ portTICK_PERIOD_MS);
-        blink_led();
-        count ++;
-
-        if(count > 30){
-        	count=0;
-        }
-        if(count <10)
-        {
-        	ESP_LOGI(tag,"Value: %u",count);
-        }else if(count>=10 && count<20){
-        	ESP_LOGW(tag,"Value: %u",count);
-        }else if(count>=20){
-        	ESP_LOGE(tag,"Value: %u",count);
-        }
-
-
-    }
+	set_timer();
 
 }
 
@@ -51,5 +46,31 @@ esp_err_t blink_led(void)
 {
 	led_level =!led_level;
 	gpio_set_level(led1,led_level);
+	return ESP_OK;
+}
+
+esp_err_t set_timer(void){
+	ESP_LOGI(tag, "Timer init configuration");
+	xTimers = xTimerCreate("Timer",       // Just a text name, not used by the kernel.
+						 	 (pdMS_TO_TICKS(interval)),   // The timer period in ticks.
+							 pdTRUE,        // The timers will auto-reload themselves when they expire.
+							 (void*)timerId,  // Assign each timer a unique id equal to its array index.
+							 vTimerCallback // Each timer calls the same callback when it expires.
+	 );
+
+	if( xTimers == NULL )
+	{
+	  ESP_LOGE(tag, "The timer was not created.");
+	}
+	else
+	{
+	  // Start the timer.  No block time is specified, and even if one was
+	  // it would be ignored because the scheduler has not yet been
+	  // started.
+	  if( xTimerStart(xTimers, 0) != pdPASS )
+	  {
+		  ESP_LOGE(tag,"The timer could not be set into the Active state.");
+	  }
+	}
 	return ESP_OK;
 }
