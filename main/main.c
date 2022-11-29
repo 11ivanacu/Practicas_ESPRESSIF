@@ -93,7 +93,7 @@ void vTaskR( void * pvParameters )
 void vTaskG( void * pvParameters )
 {
 	while(1){
-		ESP_LOGI(tag,"LED G");
+		ESP_LOGW(tag,"LED G");
 		gpio_set_level(ledG,1);
 		vTaskDelay(pdMS_TO_TICKS(G_delay));
 		gpio_set_level(ledG,0);
@@ -105,7 +105,7 @@ void vTaskG( void * pvParameters )
 void vTaskB( void * pvParameters )
 {
 	while(1){
-		ESP_LOGI(tag,"LED B");
+		ESP_LOGE(tag,"LED B");
 		gpio_set_level(ledB,1);
 		vTaskDelay(pdMS_TO_TICKS(B_delay));
 		gpio_set_level(ledB,0);
