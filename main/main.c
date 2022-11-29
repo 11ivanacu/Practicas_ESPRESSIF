@@ -10,7 +10,7 @@
 #define ledB 26
 #define STACK_SIZE 1024*2
 #define R_delay 1000
-#define G_delay 2000
+#define G_delay 50
 #define B_delay 4000
 
 const char *tag="Main";
@@ -29,7 +29,7 @@ void app_main(void)
 	 while(1)
 	 {
 		 vTaskDelay(pdMS_TO_TICKS(500));
-		 printf("hello from main\n");
+		 ESP_LOGI(tag,"Numeros de core: %i", portNUM_PROCESSORS);
 
 	 }
 }
@@ -53,26 +53,29 @@ esp_err_t create_task(void){
 	static uint8_t ucParameterToPass;
 	TaskHandle_t xHandle = NULL;
 
-	xTaskCreate( vTaskR,
+	xTaskCreatePinnedToCore( vTaskR,
 				"vTaskR",
 				STACK_SIZE,
 				&ucParameterToPass,
 				1,
-				&xHandle);
+				&xHandle,
+				0);
 
-	xTaskCreate( vTaskG,
+	xTaskCreatePinnedToCore( vTaskG,
 				"vTaskG",
 				STACK_SIZE,
 				&ucParameterToPass,
 				1,
-				&xHandle);
+				&xHandle,
+				1);
 
-	xTaskCreate( vTaskB,
+	xTaskCreatePinnedToCore( vTaskB,
 				"vTaskB",
 				STACK_SIZE,
 				&ucParameterToPass,
 				1,
-				&xHandle);
+				&xHandle,
+				tskNO_AFFINITY);
 
 
 	return ESP_OK;
@@ -82,7 +85,7 @@ esp_err_t create_task(void){
 void vTaskR( void * pvParameters )
 {
 	while(1){
-		ESP_LOGI(tag,"LED R");
+		ESP_LOGI(tag,"LED R Core 0");
 		gpio_set_level(ledR,1);
 		vTaskDelay(pdMS_TO_TICKS(R_delay));
 		gpio_set_level(ledR,0);
@@ -93,7 +96,7 @@ void vTaskR( void * pvParameters )
 void vTaskG( void * pvParameters )
 {
 	while(1){
-		ESP_LOGW(tag,"LED G");
+		ESP_LOGW(tag,"LED G Core 1");
 		gpio_set_level(ledG,1);
 		vTaskDelay(pdMS_TO_TICKS(G_delay));
 		gpio_set_level(ledG,0);
@@ -105,7 +108,7 @@ void vTaskG( void * pvParameters )
 void vTaskB( void * pvParameters )
 {
 	while(1){
-		ESP_LOGE(tag,"LED B");
+		ESP_LOGE(tag,"LED B Core Any");
 		gpio_set_level(ledB,1);
 		vTaskDelay(pdMS_TO_TICKS(B_delay));
 		gpio_set_level(ledB,0);
