@@ -2,27 +2,28 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 
 #define ledR 33
 #define ledG 25
 #define ledB 26
 #define STACK_SIZE 1024*2
-#define R_delay 400
+#define R_delay 1000
 #define G_delay 2000
 
-QueueHandle_t GlobalQueue = 0;
-
+xSemaphoreHandle GlobalKey = 0;
 const char *tag = "Main";
 
 esp_err_t init_led(void);
 esp_err_t create_task(void);
+esp_err_t shared_resource(int led);
+
 void vTaskR(void *pvParameters);
 void vTaskG(void *pvParameters);
 
 void app_main(void) {
-	GlobalQueue = xQueueCreate(20, sizeof(uint32_t));
+	GlobalKey = xSemaphoreCreateMutex();
 	init_led();
 	create_task();
 }
@@ -53,41 +54,37 @@ esp_err_t create_task(void) {
 	return ESP_OK;
 }
 
+esp_err_t shared_resource(int led) {
+	for (size_t i = 0; i < 8; i++) {
+		vTaskDelay(pdMS_TO_TICKS(400));
+		gpio_set_level(led, 1);
+		vTaskDelay(pdMS_TO_TICKS(400));
+		gpio_set_level(led, 0);
+	}
+	return ESP_OK;
+}
+
 void vTaskR(void *pvParameters) {
 	while (1) {
-
-		for (size_t i = 0; i < 8; i++) {
-			vTaskDelay(pdMS_TO_TICKS(R_delay/2));
-			gpio_set_level(ledR, 1);
-			ESP_LOGW(tag, "sending %i to queue", i);
-			if (!xQueueSend(GlobalQueue, &i, pdMS_TO_TICKS(100))) {
-				ESP_LOGE(tag, "Error sending %i to queue", i);
-			}
-			vTaskDelay(pdMS_TO_TICKS(R_delay/2));
-			gpio_set_level(ledR, 0);
+		if (xSemaphoreTake(GlobalKey, pdMS_TO_TICKS(100))) {
+			ESP_LOGE(tag, "Task R took the resource");
+			shared_resource(ledR);
+			xSemaphoreGive(GlobalKey);
 		}
-		vTaskDelay(pdMS_TO_TICKS(7000));
+
+		vTaskDelay(pdMS_TO_TICKS(R_delay));
 	}
 }
 
 void vTaskG(void *pvParameters) {
-	int receivedValue = 0;
-
 	while (1) {
-
-		if (!xQueueReceive(GlobalQueue, &receivedValue, pdMS_TO_TICKS(100))) {
-			ESP_LOGE(tag, "Error receiving value from queue");
-		} else {
-			vTaskDelay(pdMS_TO_TICKS(G_delay/2));
-			gpio_set_level(ledG, 1);
-
-			ESP_LOGI(tag, "Value received %i from queue", receivedValue);
-			vTaskDelay(pdMS_TO_TICKS(G_delay/2));
-			gpio_set_level(ledG, 0);
-
+		if (xSemaphoreTake(GlobalKey, pdMS_TO_TICKS(100))) {
+			ESP_LOGI(tag, "Task G took the resource");
+			shared_resource(ledG);
+			xSemaphoreGive(GlobalKey);
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(100));
+		vTaskDelay(pdMS_TO_TICKS(G_delay));
 	}
 }
 
