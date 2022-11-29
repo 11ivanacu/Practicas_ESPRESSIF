@@ -2,41 +2,32 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_log.h"
-
 
 #define ledR 33
 #define ledG 25
 #define ledB 26
 #define STACK_SIZE 1024*2
-#define R_delay 1000
-#define G_delay 50
-#define B_delay 4000
+#define R_delay 400
+#define G_delay 2000
 
-const char *tag="Main";
+QueueHandle_t GlobalQueue = 0;
+
+const char *tag = "Main";
 
 esp_err_t init_led(void);
 esp_err_t create_task(void);
-void vTaskR( void * pvParameters);
-void vTaskG( void * pvParameters);
-void vTaskB( void * pvParameters);
+void vTaskR(void *pvParameters);
+void vTaskG(void *pvParameters);
 
-
-void app_main(void)
-{
-	 init_led();
-	 create_task();
-	 while(1)
-	 {
-		 vTaskDelay(pdMS_TO_TICKS(500));
-		 ESP_LOGI(tag,"Numeros de core: %i", portNUM_PROCESSORS);
-
-	 }
+void app_main(void) {
+	GlobalQueue = xQueueCreate(20, sizeof(uint32_t));
+	init_led();
+	create_task();
 }
 
-
-esp_err_t init_led(void)
-{
+esp_err_t init_led(void) {
 	gpio_reset_pin(ledR);
 	gpio_set_direction(ledR, GPIO_MODE_OUTPUT);
 
@@ -49,71 +40,54 @@ esp_err_t init_led(void)
 	return ESP_OK;
 }
 
-esp_err_t create_task(void){
+esp_err_t create_task(void) {
 	static uint8_t ucParameterToPass;
 	TaskHandle_t xHandle = NULL;
 
-	xTaskCreatePinnedToCore( vTaskR,
-				"vTaskR",
-				STACK_SIZE,
-				&ucParameterToPass,
-				1,
-				&xHandle,
-				0);
+	xTaskCreatePinnedToCore(vTaskR, "vTaskR",
+	STACK_SIZE, &ucParameterToPass, 1, &xHandle, 0);
 
-	xTaskCreatePinnedToCore( vTaskG,
-				"vTaskG",
-				STACK_SIZE,
-				&ucParameterToPass,
-				1,
-				&xHandle,
-				1);
-
-	xTaskCreatePinnedToCore( vTaskB,
-				"vTaskB",
-				STACK_SIZE,
-				&ucParameterToPass,
-				1,
-				&xHandle,
-				tskNO_AFFINITY);
-
+	xTaskCreatePinnedToCore(vTaskG, "vTaskG",
+	STACK_SIZE, &ucParameterToPass, 1, &xHandle, 1);
 
 	return ESP_OK;
 }
 
+void vTaskR(void *pvParameters) {
+	while (1) {
 
-void vTaskR( void * pvParameters )
-{
-	while(1){
-		ESP_LOGI(tag,"LED R Core 0");
-		gpio_set_level(ledR,1);
-		vTaskDelay(pdMS_TO_TICKS(R_delay));
-		gpio_set_level(ledR,0);
-		vTaskDelay(pdMS_TO_TICKS(R_delay));
+		for (size_t i = 0; i < 8; i++) {
+			vTaskDelay(pdMS_TO_TICKS(R_delay/2));
+			gpio_set_level(ledR, 1);
+			ESP_LOGW(tag, "sending %i to queue", i);
+			if (!xQueueSend(GlobalQueue, &i, pdMS_TO_TICKS(100))) {
+				ESP_LOGE(tag, "Error sending %i to queue", i);
+			}
+			vTaskDelay(pdMS_TO_TICKS(R_delay/2));
+			gpio_set_level(ledR, 0);
+		}
+		vTaskDelay(pdMS_TO_TICKS(7000));
 	}
 }
 
-void vTaskG( void * pvParameters )
-{
-	while(1){
-		ESP_LOGW(tag,"LED G Core 1");
-		gpio_set_level(ledG,1);
-		vTaskDelay(pdMS_TO_TICKS(G_delay));
-		gpio_set_level(ledG,0);
-		vTaskDelay(pdMS_TO_TICKS(G_delay));
+void vTaskG(void *pvParameters) {
+	int receivedValue = 0;
+
+	while (1) {
+
+		if (!xQueueReceive(GlobalQueue, &receivedValue, pdMS_TO_TICKS(100))) {
+			ESP_LOGE(tag, "Error receiving value from queue");
+		} else {
+			vTaskDelay(pdMS_TO_TICKS(G_delay/2));
+			gpio_set_level(ledG, 1);
+
+			ESP_LOGI(tag, "Value received %i from queue", receivedValue);
+			vTaskDelay(pdMS_TO_TICKS(G_delay/2));
+			gpio_set_level(ledG, 0);
+
+		}
+
+		vTaskDelay(pdMS_TO_TICKS(100));
 	}
 }
-
-
-void vTaskB( void * pvParameters )
-{
-	while(1){
-		ESP_LOGE(tag,"LED B Core Any");
-		gpio_set_level(ledB,1);
-		vTaskDelay(pdMS_TO_TICKS(B_delay));
-		gpio_set_level(ledB,0);
-		vTaskDelay(pdMS_TO_TICKS(B_delay));
-	}
-}
-
 
