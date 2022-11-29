@@ -9,7 +9,7 @@
 #define ledG 25
 #define ledB 26
 #define STACK_SIZE 1024*2
-#define R_delay 1000
+#define R_delay 10000
 #define G_delay 2000
 
 xSemaphoreHandle GlobalKey = 0;
@@ -23,7 +23,7 @@ void vTaskR(void *pvParameters);
 void vTaskG(void *pvParameters);
 
 void app_main(void) {
-	GlobalKey = xSemaphoreCreateMutex();
+	GlobalKey = xSemaphoreCreateBinary();
 	init_led();
 	create_task();
 }
@@ -66,11 +66,14 @@ esp_err_t shared_resource(int led) {
 
 void vTaskR(void *pvParameters) {
 	while (1) {
-		if (xSemaphoreTake(GlobalKey, pdMS_TO_TICKS(100))) {
-			ESP_LOGE(tag, "Task R took the resource");
-			shared_resource(ledR);
-			xSemaphoreGive(GlobalKey);
+		for (size_t i = 0; i < 8; i++) {
+			vTaskDelay(pdMS_TO_TICKS(400));
+			gpio_set_level(ledR, 1);
+			vTaskDelay(pdMS_TO_TICKS(400));
+			gpio_set_level(ledR, 0);
 		}
+		ESP_LOGE(tag, "Task R is giving the key");
+		xSemaphoreGive(GlobalKey);
 
 		vTaskDelay(pdMS_TO_TICKS(R_delay));
 	}
@@ -78,13 +81,19 @@ void vTaskR(void *pvParameters) {
 
 void vTaskG(void *pvParameters) {
 	while (1) {
-		if (xSemaphoreTake(GlobalKey, pdMS_TO_TICKS(100))) {
-			ESP_LOGI(tag, "Task G took the resource");
-			shared_resource(ledG);
-			xSemaphoreGive(GlobalKey);
+		if (xSemaphoreTake(GlobalKey, portMAX_DELAY)) {
+			ESP_LOGI(tag, "Task G is working");
+			for (size_t i = 0; i < 8; i++) {
+				vTaskDelay(pdMS_TO_TICKS(400));
+				gpio_set_level(ledG, 1);
+				vTaskDelay(pdMS_TO_TICKS(400));
+				gpio_set_level(ledG, 0);
+			}
+			ESP_LOGI(tag, "Task G is sleeping");
+
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(G_delay));
+		vTaskDelay(pdMS_TO_TICKS(100));
 	}
 }
 
