@@ -15,42 +15,44 @@ static const char *tag = "UART";
 #define BUF_SIZE 1024
 #define TASK_MEMORY 1024*2
 
-
-
-
 static void uart_task(void *pvParameters)
 {
 	uint8_t *data =(uint8_t *) malloc(BUF_SIZE);
 	while(1){
 		bzero(data,BUF_SIZE);
 		int len= uart_read_bytes(UART_NUM, data, BUF_SIZE, pdMS_TO_TICKS(100));
+		ESP_LOGI(tag,"length: %i",len);
 		if(len ==0){
 			continue;
 		}
 
-		uart_write_bytes(UART_NUM,(const char *)data,len);
+		//uart_write_bytes(UART_NUM,(const char *)data,len);
 		ESP_LOGI(tag,"Data Received: %s",data);
-		for(size_t i =0; i<len -2; i++){
+		for(size_t i =0; i<len -1; i++){
 			char value = data[i];
 
 			switch(value){
 			case 'R':
+				ESP_LOGI(tag,"Prendo R");
 				gpio_set_level(ledR, 1);
 				gpio_set_level(ledG, 0);
 				gpio_set_level(ledB, 0);
 				break;
 			case 'G':
+				ESP_LOGI(tag,"Prendo G");
 				gpio_set_level(ledR, 0);
 				gpio_set_level(ledG, 1);
 				gpio_set_level(ledB, 0);
 
 				break;
 			case 'B':
+				ESP_LOGI(tag,"Prendo B");
 				gpio_set_level(ledR, 0);
 				gpio_set_level(ledG, 0);
 				gpio_set_level(ledB, 1);
 				break;
 			default:
+				ESP_LOGI(tag,"Default");
 				gpio_set_level(ledR, 0);
 				gpio_set_level(ledG, 0);
 				gpio_set_level(ledB, 0);
